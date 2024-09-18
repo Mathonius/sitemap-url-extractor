@@ -16,6 +16,8 @@
                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             </div>
             
+            <div id="errorMessage" class="hidden mb-4 text-red-600 text-sm"></div>
+            
             <button id="extractButton"
                     class="w-full bg-blue-500 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200">
                 Extract URLs
@@ -38,20 +40,46 @@
             const inputUrl = document.getElementById('inputUrl').value.trim();
             const outputUrls = document.getElementById('outputUrls');
             const urlCount = document.getElementById('urlCount');
+            const errorMessage = document.getElementById('errorMessage');
+
+            // Reset previous results and errors
+            outputUrls.value = '';
+            urlCount.textContent = 'Total URLs extracted: 0';
+            errorMessage.textContent = '';
+            errorMessage.classList.add('hidden');
 
             if (!inputUrl) {
-                alert('Please enter a valid sitemap URL');
+                showError('Please enter a sitemap URL');
+                return;
+            }
+
+            if (!isValidUrl(inputUrl)) {
+                showError('Please enter a valid URL');
                 return;
             }
 
             // Use a CORS proxy to fetch the XML sitemap
             const proxyUrl = 'https://api.allorigins.win/raw?url=';
             fetch(proxyUrl + encodeURIComponent(inputUrl))
-                .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.text();
+                })
                 .then(xmlString => {
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+                    
+                    if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                        throw new Error('Invalid XML');
+                    }
+                    
                     const urls = xmlDoc.getElementsByTagName('loc');
+                    
+                    if (urls.length === 0) {
+                        throw new Error('No URLs found in the sitemap');
+                    }
                     
                     const extractedUrls = Array.from(urls).map(url => url.textContent);
                     outputUrls.value = extractedUrls.join('\n');
@@ -59,9 +87,24 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while fetching or parsing the sitemap. Please check the URL and try again.');
+                    showError('An error occurred while fetching or parsing the sitemap. Please check the URL and try again.');
                 });
         });
+
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
     </script>
 </body>
 </html>
